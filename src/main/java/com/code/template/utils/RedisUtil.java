@@ -3,20 +3,16 @@ package com.code.template.utils;
 
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONUtil;
-import com.alibaba.fastjson.JSON;
-import com.code.template.constants.CodeEnum;
 import com.code.template.constants.RedisConstants;
-import com.code.template.exception.CustomException;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Array;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -106,10 +102,46 @@ public class RedisUtil {
      * @param type 类型
      * @return {@link E}
      */
+    @SuppressWarnings("rawtypes")
     public <E> E get(String key,Class<E> type){
+        // 基础类型
+        if (type == String.class) {
+            // 对于字符串，直接返回 JSON 字符串
+            return (E) Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString();
+        } else if (type == Integer.class) {
+            // 对于整数，使用 parseInteger 方法
+            return (E) Integer.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+        } else if (type == Long.class) {
+            // 对于长整数，使用 parseLong 方法
+            return (E) Long.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+        } else if (type == Double.class) {
+            // 对于双精度浮点数，使用 parseDouble 方法
+            return (E) Double.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+        } else if (type == Float.class) {
+            // 对于浮点数，使用 parseFloat 方法
+            return (E) Float.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+        } else if (type == Boolean.class) {
+            // 对于布尔值，使用 parseBoolean 方法
+            return (E) Boolean.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+        } else if (type == Character.class) {
+            // 对于字符，使用字符串的第一个字符
+            return (E) Character.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString().charAt(0));
+        } else if (type == Byte.class) {
+            // 对于字节，使用 parseByte 方法
+            return (E) Byte.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+        } else if (type.isEnum()) {
+            // 对于枚举类型，使用 Enum.valueOf() 方法转换
+            return (E) Enum.valueOf((Class<? extends Enum>) type, Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+        } else if (type == LocalDate.class) {
+            // 对于 LocalDate 类型
+            return (E) LocalDate.parse(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+        } else if (type == LocalDateTime.class) {
+            // 对于 LocalDateTime 类型
+            return (E) LocalDateTime.parse(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+        }
+        // 其他类型
         String json = JSONUtil.toJsonStr(redisTemplate.opsForValue().get(key));
-        E value = getValue(type,json);
-        return value;
+        return getValue(type,json);
     }
 
     /**
@@ -120,47 +152,47 @@ public class RedisUtil {
      * @return {@link E}
      */
     public static <E> E getValue(Class<E> type, String json) {
-        if (type == String.class) {
-            // 对于字符串，直接返回 JSON 字符串
-            return (E) json;
-        } else if (type == Integer.class) {
-            // 对于整数，使用 parseInteger 方法
-            return (E) Integer.valueOf(JSONUtil.parseObj(json).getInt("value"));
-        } else if (type == Long.class) {
-            // 对于长整数，使用 parseLong 方法
-            return (E) Long.valueOf(JSONUtil.parseObj(json).getLong("value"));
-        } else if (type == Double.class) {
-            // 对于双精度浮点数，使用 parseDouble 方法
-            return (E) Double.valueOf(JSONUtil.parseObj(json).getDouble("value"));
-        } else if (type == Float.class) {
-            // 对于浮点数，使用 parseFloat 方法
-            return (E) Float.valueOf(JSONUtil.parseObj(json).getFloat("value"));
-        } else if (type == Boolean.class) {
-            // 对于布尔值，使用 parseBoolean 方法
-            return (E) Boolean.valueOf(JSONUtil.parseObj(json).getBool("value"));
-        } else if (type == Character.class) {
-            // 对于字符，使用字符串的第一个字符
-            String strValue = JSONUtil.parseObj(json).getStr("value");
-            if (strValue != null && strValue.length() > 0) {
-                return (E) Character.valueOf(strValue.charAt(0));
-            }
-        } else if (type == Byte.class) {
-            // 对于字节，使用 parseByte 方法
-            return (E) Byte.valueOf(JSONUtil.parseObj(json).getByte("value"));
-        } else if (type.isArray()) {
-            // 对于数组，使用 parseArray 方法
-            Class<?> componentType = type.getComponentType();
-            JSONArray jsonArray = JSONUtil.parseArray(json);
-            Object array = Array.newInstance(componentType, jsonArray.size());
-            for (int i = 0; i < jsonArray.size(); i++) {
-                Array.set(array, i, getValue(componentType, jsonArray.getStr(i)));
-            }
-            return (E) array;
+        if (type.isArray()) {
+            // 对于数组类型，调用 getList 方法转换为 List
+            List<E> list = (List<E>) getList(json, type.getComponentType());
+            // 将 List 转换为数组
+            return (E) list.toArray((Object[]) Array.newInstance(type.getComponentType(), list.size()));
+        } else if(type.isAssignableFrom(List.class)){
+            return (E) getList(json,type);
+        }else if (type.isAssignableFrom(Set.class)) {
+            // 对于 Set 类型，调用 toSet 方法转换为 Set
+            return (E) getSet(json, Object.class); // 请根据实际情况替换 Object.class
         } else {
             // 对于其他对象类型，使用 toBean 方法
             return JSONUtil.toBean(json, type);
         }
-        throw new CustomException(CodeEnum.UNSUPPORT_TYPE);
+    }
+
+    /**
+     * 获取 Set 集合
+     *
+     * @param json        JSON
+     * @param elementType 元素类型
+     * @return {@link Set}<{@link E}>
+     */
+    public static <E> Set<E> getSet(String json, Class<E> elementType) {
+        Set<E> set = new HashSet<>();
+        JSONArray jsonArray = JSONUtil.parseArray(json);
+        for (int i = 0; i < jsonArray.size(); i++) {
+            set.add(JSONUtil.toBean(jsonArray.getJSONObject(i), elementType));
+        }
+        return set;
+    }
+
+    /**
+     * 获取列表
+     *
+     * @param json JSON
+     * @param type 类型
+     * @return {@link List}<{@link E}>
+     */
+    public static <E>  List<E> getList(String json,Class<E> type) {
+        return JSONUtil.toList(json,type);
     }
 
     /**
