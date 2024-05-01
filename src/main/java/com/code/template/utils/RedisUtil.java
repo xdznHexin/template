@@ -15,12 +15,11 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Redis 工具类
+ * Redis工具类
  *
  * @author HeXin
- * @date 2024/03/08
+ * @date 2024/04/26
  */
-
 @Component
 @SuppressWarnings({"unchecked","unused"})
 public class RedisUtil {
@@ -94,7 +93,8 @@ public class RedisUtil {
      * @return {@link String}
      */
     public String getString(String key){
-        return redisTemplate.opsForValue().get(key) == null ? null : JSONUtil.toJsonStr(redisTemplate.opsForValue().get(key));
+        Object value = getObject(key);
+        return value == null ? null : value.toString();
     }
 
     /**
@@ -106,43 +106,38 @@ public class RedisUtil {
      */
     @SuppressWarnings("rawtypes")
     public <E> E get(String key,Class<E> type){
+        Object rawValue = getObject(key);
+        if (rawValue == null) {
+            return null;
+        }
         // 基础类型
         if (type == String.class) {
             // 对于字符串，直接返回 JSON 字符串
-            return (E) Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString();
+            return type.cast(rawValue);
         } else if (type == Integer.class) {
             // 对于整数，使用 parseInteger 方法
-            return (E) Integer.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+            return type.cast(Integer.valueOf(rawValue.toString()));
         } else if (type == Long.class) {
-            // 对于长整数，使用 parseLong 方法
-            return (E) Long.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+            return type.cast(Long.parseLong(rawValue.toString()));
         } else if (type == Double.class) {
-            // 对于双精度浮点数，使用 parseDouble 方法
-            return (E) Double.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+            return type.cast(Double.parseDouble(rawValue.toString()));
         } else if (type == Float.class) {
-            // 对于浮点数，使用 parseFloat 方法
-            return (E) Float.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+            return type.cast(Float.parseFloat(rawValue.toString()));
         } else if (type == Boolean.class) {
-            // 对于布尔值，使用 parseBoolean 方法
-            return (E) Boolean.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+            return type.cast(Boolean.parseBoolean(rawValue.toString()));
         } else if (type == Character.class) {
-            // 对于字符，使用字符串的第一个字符
-            return (E) Character.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString().charAt(0));
+            return type.cast(rawValue.toString().charAt(0));
         } else if (type == Byte.class) {
-            // 对于字节，使用 parseByte 方法
-            return (E) Byte.valueOf(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+            return type.cast(Byte.parseByte(rawValue.toString()));
         } else if (type.isEnum()) {
-            // 对于枚举类型，使用 Enum.valueOf() 方法转换
-            return (E) Enum.valueOf((Class<? extends Enum>) type, Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+            return (E) Enum.valueOf((Class<? extends Enum>) type, rawValue.toString());
         } else if (type == LocalDate.class) {
-            // 对于 LocalDate 类型，使用 Hutool 的日期工具类转换
-            return (E) LocalDate.parse(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+            return type.cast(LocalDate.parse(rawValue.toString()));
         } else if (type == LocalDateTime.class) {
-            // 对于 LocalDateTime 类型，使用 Hutool 的日期工具类转换
-            return (E) LocalDateTime.parse(Objects.requireNonNull(redisTemplate.opsForValue().get(key)).toString());
+            return type.cast(LocalDateTime.parse(rawValue.toString()));
         }
         // 其他类型
-        String json = JSONUtil.toJsonStr(redisTemplate.opsForValue().get(key));
+        String json = JSONUtil.toJsonStr(rawValue);
         return getValue(type,json);
     }
 
@@ -153,14 +148,14 @@ public class RedisUtil {
      * @param json json格式
      * @return {@link E}
      */
-    public static <E> E getValue(Class<E> type, String json) {
+    public  <E> E getValue(Class<E> type, String json) {
         if (type.isArray()) {
             // 对于数组类型，调用 getList 方法转换为 List
-            List<E> list = (List<E>) getList(json, type.getComponentType());
+            List<E> list = (List<E>) getListOfJson(json, type.getComponentType());
             // 将 List 转换为数组
             return (E) list.toArray((Object[]) Array.newInstance(type.getComponentType(), list.size()));
         } else if(type.isAssignableFrom(List.class)){
-            return (E) getList(json,type);
+            return (E) getListOfJson(json,type);
         }else if (type.isAssignableFrom(Set.class)) {
             // 对于 Set 类型，调用 toSet 方法转换为 Set
             return (E) getSet(json, Object.class); // 请根据实际情况替换 Object.class
@@ -177,7 +172,7 @@ public class RedisUtil {
      * @param elementType 元素类型
      * @return {@link Set}<{@link E}>
      */
-    public static <E> Set<E> getSet(String json, Class<E> elementType) {
+    public  <E> Set<E> getSet(String json, Class<E> elementType) {
         Set<E> set = new HashSet<>();
         JSONArray jsonArray = JSONUtil.parseArray(json);
         for (int i = 0; i < jsonArray.size(); i++) {
@@ -193,10 +188,27 @@ public class RedisUtil {
      * @param type 类型
      * @return {@link List}<{@link E}>
      */
-    public static <E>  List<E> getList(String json,Class<E> type) {
+    public  <E>  List<E> getListOfJson(String json, Class<E> type) {
         return JSONUtil.toList(json,type);
     }
 
+    public <E> List<E> getListOfKey(String key,Class<E> type) {
+        String jsonString = getString(key);
+        if (jsonString == null) {
+            return Collections.emptyList();
+        }
+        return getListOfJson(jsonString, type);
+    }
+
+    /**
+      * 刷新缓存
+      */
+    public void refresh(String key,Object value) {
+        // 清除缓存
+        remove(key);
+        // 新加缓存
+        set(key,value);
+    }
 
     /**
      * 将值放入缓存
@@ -205,7 +217,7 @@ public class RedisUtil {
      * @param value 值
      */
     public void set(String key, Object value) {
-        redisTemplate.opsForValue().set(key, value);
+        redisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(value));
     }
 
     /**
