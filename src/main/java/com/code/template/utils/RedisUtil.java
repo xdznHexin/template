@@ -201,13 +201,58 @@ public class RedisUtil {
     }
 
     /**
-      * 刷新缓存
-      */
+     * 刷新缓存
+     *
+     * @param key   键
+     * @param value 价值
+     */
     public void refresh(String key,Object value) {
         // 清除缓存
         remove(key);
         // 新加缓存
         set(key,value);
+    }
+
+    /**
+     * 刷新缓存
+     *
+     * @param constants 常数
+     * @param value     价值
+     */
+    public void refresh(RedisConstants constants,Object value) {
+        // 清除缓存
+        remove(constants.getKey());
+        // 新增缓存
+        set(constants,value);
+    }
+
+    /**
+     * 刷新缓存
+     *
+     * @param constants 常数
+     * @param key       键
+     * @param value     价值
+     */
+    public void refresh(RedisConstants constants,String key,Object value) {
+        // 清除缓存
+        remove(constants.getKey() + key);
+        // 新增缓存
+        set(constants,key,value);
+    }
+
+    /**
+     * 刷新缓存
+     *
+     * @param key      键
+     * @param value    价值
+     * @param time     时间
+     * @param timeUnit 时间单位
+     */
+    public void refresh(String key, Object value, long time, TimeUnit timeUnit) {
+        // 清除缓存
+        remove(key);
+        // 新增缓存
+        set(key, value,time,timeUnit);
     }
 
     /**
@@ -217,7 +262,29 @@ public class RedisUtil {
      * @param value 值
      */
     public void set(String key, Object value) {
-        redisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(value));
+        if (isPrimitiveOrWrapper(value.getClass())) {
+            // 基本类型直接存
+            redisTemplate.opsForValue().set(key, value);
+        } else {
+            redisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(value));
+        }
+    }
+
+    /**
+     * 判断一个类是否是基本类型或其包装类
+     *
+     * @param clazz 类
+     * @return 是否是基本类型或其包装类
+     */
+    private boolean isPrimitiveOrWrapper(Class<?> clazz) {
+        return clazz.isPrimitive() ||
+                clazz == Integer.class ||
+                clazz == Long.class ||
+                clazz == Double.class ||
+                clazz == Float.class ||
+                clazz == Boolean.class ||
+                clazz == Byte.class ||
+                clazz == Character.class;
     }
 
     /**
@@ -229,6 +296,9 @@ public class RedisUtil {
      * @param timeUnit 时间单位
      */
     public void set(String key, Object value, long time, TimeUnit timeUnit) {
+        if(!isPrimitiveOrWrapper(value.getClass())) {
+            value = JSONUtil.toJsonStr(value);
+        }
         if (time > 0) {
             redisTemplate.opsForValue().set(key, value, time, timeUnit);
         } else {
@@ -244,6 +314,9 @@ public class RedisUtil {
      * @param value          价值
      */
     public void set(RedisConstants redisConstants, String key, Object value) {
+        if(!isPrimitiveOrWrapper(value.getClass())) {
+            value = JSONUtil.toJsonStr(value);
+        }
         Long ttl = redisConstants.getTtl();
         if (ttl > 0) {
             redisTemplate.opsForValue().set(redisConstants.getKey() + key, value, ttl, redisConstants.getTimeUnit());
@@ -259,6 +332,9 @@ public class RedisUtil {
      * @param value          值
      */
     public void set(RedisConstants redisConstants,Object value) {
+        if(!isPrimitiveOrWrapper(value.getClass())) {
+            value = JSONUtil.toJsonStr(value);
+        }
         Long ttl = redisConstants.getTtl();
         if (ttl > 0) {
             redisTemplate.opsForValue().set(redisConstants.getKey(), value, ttl, redisConstants.getTimeUnit());
