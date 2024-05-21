@@ -17,14 +17,14 @@ public @interface Cache {
      * 键
      * @return {@link String}
      */
-    String key() default "";
+    String cacheKey() default "";
 
     /**
      * 时间
      *
      * @return long
      */
-    long time() default 10L;
+    long ttl() default 10L;
 
     /**
      * 时间单位
@@ -35,7 +35,6 @@ public @interface Cache {
 
     /**
      * 常量
-     * 常数
      *
      * @return {@link RedisConstants}
      */
