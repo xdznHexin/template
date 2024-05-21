@@ -12,10 +12,10 @@ spring:
     format:
       date: yyyy-MM-dd HH:mm:ss
   datasource:
-    url: jdbc:oceanbase://localhost:2881/test
+    url: jdbc:mysql://localhost:3306/template?serverTimezone=GMT%2B8&useUnicode=true&characterEncoding=utf-8
     username: root
     password: 123456
-    driver-class-name: com.alipay.oceanbase.jdbc.Driver
+    driver-class-name: com.mysql.cj.jdbc.Driver
   data:
     redis:
       host: 127.0.0.1
